@@ -1,0 +1,39 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Local Track",
+        "description": "Pick the people or trackers whose positions should be kept for years. Every position is stored in a separate database that the recorder never purges.",
+        "data": {
+          "entities": "Entities to record",
+          "retention_days": "Keep history for (days)"
+        }
+      }
+    },
+    "error": {
+      "no_entities": "Pick at least one person or device tracker."
+    },
+    "abort": {
+      "single_instance_allowed": "Local Track is already set up. Use Configure to change it."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Local Track",
+        "description": "A position is stored when it is at least the given distance away from the last one, or when the given time has passed. Points older than the downsampling age are thinned out to one per interval.",
+        "data": {
+          "entities": "Entities to record",
+          "retention_days": "Keep history for (days)",
+          "min_distance_m": "Minimum distance (metres)",
+          "min_interval_s": "Minimum interval (seconds)",
+          "downsample_after_days": "Thin out points older than (days)",
+          "downsample_interval_s": "Thinned-out interval (seconds)"
+        }
+      }
+    },
+    "error": {
+      "no_entities": "Pick at least one person or device tracker."
+    }
+  }
+}

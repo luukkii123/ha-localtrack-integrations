@@ -1,0 +1,39 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Local Track",
+        "description": "Wähle die Personen oder Tracker, deren Standorte über Jahre erhalten bleiben sollen. Die Punkte landen in einer eigenen Datenbank, die der Recorder nie aufräumt.",
+        "data": {
+          "entities": "Aufzuzeichnende Entitäten",
+          "retention_days": "Verlauf aufbewahren (Tage)"
+        }
+      }
+    },
+    "error": {
+      "no_entities": "Mindestens eine Person oder einen Device-Tracker auswählen."
+    },
+    "abort": {
+      "single_instance_allowed": "Local Track ist bereits eingerichtet. Änderungen über „Konfigurieren“."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Local Track",
+        "description": "Ein Standort wird gespeichert, wenn er mindestens den angegebenen Abstand zum letzten hat oder die angegebene Zeit vergangen ist. Punkte, die älter sind als die Ausdünn-Grenze, bleiben nur noch einer je Intervall.",
+        "data": {
+          "entities": "Aufzuzeichnende Entitäten",
+          "retention_days": "Verlauf aufbewahren (Tage)",
+          "min_distance_m": "Mindestabstand (Meter)",
+          "min_interval_s": "Mindestabstand in der Zeit (Sekunden)",
+          "downsample_after_days": "Ausdünnen ab Alter (Tage)",
+          "downsample_interval_s": "Intervall nach dem Ausdünnen (Sekunden)"
+        }
+      }
+    },
+    "error": {
+      "no_entities": "Mindestens eine Person oder einen Device-Tracker auswählen."
+    }
+  }
+}
