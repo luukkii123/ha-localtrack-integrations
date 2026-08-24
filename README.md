@@ -17,9 +17,15 @@ die der Recorder nie anfasst. Punkte werden beim Schreiben entdoppelt und nach
 einer Weile ausgedünnt, damit die Datei nicht unbegrenzt wächst.
 
 Wer das Ganze **sehen** will, braucht zusätzlich die Karte
-**`busch-timeline-card`** aus dem Repo
-[ha-busch-cards](https://github.com/luukkii123/ha-busch-cards) — Karten und
-Integrationen lassen sich in HACS nicht im selben Repository ausliefern.
+**`localtrack-timeline-card`** aus dem Repo
+[ha-localtrack-cards](https://github.com/luukkii123/ha-localtrack-cards) —
+Karten und Integrationen lassen sich in HACS nicht im selben Repository
+ausliefern, deshalb zwei.
+
+> Bis August 2026 lag die Karte als `busch-timeline-card` in
+> [ha-busch-cards](https://github.com/luukkii123/ha-busch-cards). Wer sie von
+> dort kennt: `type:` auf `custom:localtrack-timeline-card` ändern, die Optionen
+> sind unverändert.
 
 ## Installation über HACS
 
