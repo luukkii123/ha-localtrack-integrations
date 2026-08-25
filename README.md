@@ -138,6 +138,37 @@ Listen `days_written`, `days_skipped` und `days_without_data`.
 Gefragt wird **tageweise**: eine dichte Quelle liefert Zehntausende Zeilen pro
 Tag, und ein ganzer Monat am Stück läge ohne Gewinn gleichzeitig im Speicher.
 
+**„Tag" heißt hier: rollierende 24 Stunden ab jetzt**, nicht Kalendertag ab
+lokaler Mitternacht. Ein um 23:15 gestarteter Lauf schneidet die Fenster bei
+23:15, und `days_written` nennt nur das lokale Datum des Fensteranfangs. Für
+einen einmaligen Nachtrag ist das folgenlos. Wer denselben Bereich später zu
+anderer Tageszeit erneut importiert, trifft auf verschobene Fenster — und damit
+auf eine andere Entscheidung, welcher „Tag" schon voll ist.
+
+### Was der Import in der Praxis liefert
+
+Gemessen am 25.08.2026 an einer laufenden Installation (HA core-2026.8.3,
+Recorder auf MariaDB, fünf Personen, `min_distance_m: 10`):
+
+| Person | Rohzeilen | gespeichert | ausgedünnt |
+| --- | --- | --- | --- |
+| A (viel unterwegs) | 146 438 | 24 445 | 83 % |
+| B | 9 112 | 5 471 | 40 % |
+| C | 3 048 | 2 227 | 27 % |
+| D | 1 963 | 1 961 | 0,1 % |
+| E | 620 | 603 | 3 % |
+
+Zusammen 34 708 Punkte in 2,5 MiB, Spanne knapp acht Tage — genau so weit, wie
+der Recorder zurückreichte. **Der Ausdünnungsanteil sagt mehr über die Quelle
+als über die Einstellung:** Wer viel steht und dabei dicht meldet, verliert den
+größten Teil (GPS-Zittern); wer sich kaum bewegt und selten meldet, verliert
+fast nichts.
+
+Ein Lauf über zehn Tage und 146 000 Zeilen dauerte auf einem Raspberry Pi 4
+rund **zwei Minuten**. Wer den Dienst über eine API mit Zeitablauf aufruft,
+bekommt die Antwort möglicherweise nicht mehr — das Ergebnis steht dann im
+Protokoll, sofern `custom_components.localtrack` auf `info` steht.
+
 ## Wo die Daten liegen
 
 `<config>/.storage/localtrack.db` — eine eigene SQLite-Datei, unabhängig von
@@ -206,13 +237,16 @@ passiert.
 
 ## Grenzen
 
-- **Noch nicht in einem laufenden Home Assistant getestet.** Die Kernlogik ist
-  gegengeprüft — `python3 tests/smoke_test.py` läuft ohne Home Assistant und
-  belegt Ausdünnung, SQLite-Schicht und Import (Trockenlauf, Wiederholbarkeit,
-  Überschreiben, Tagesaufteilung). Das Zusammenspiel mit einer echten
-  Installation ist damit **nicht** belegt. Insbesondere gilt: Die Signatur von
-  `history.get_significant_states` ist gegen core-2026.8.3 nachgelesen, aber
-  nicht ausgeführt worden.
+- **Seit 25.08.2026 in einem laufenden Home Assistant erprobt** (core-2026.8.3,
+  Recorder auf MariaDB, Raspberry Pi 4): Einrichtung, Live-Mitschnitt, Import
+  und die WebSocket-Abfrage der Karte. Zusätzlich läuft
+  `python3 tests/smoke_test.py` ohne Home Assistant und deckt Ausdünnung,
+  SQLite-Schicht und Import ab (Trockenlauf, Wiederholbarkeit, Überschreiben,
+  Tagesaufteilung).
+
+  **Nicht erprobt:** SQLite als Recorder-Datenbank (hier lief MariaDB), sehr
+  große Zeiträume, und der automatische Erstimport im Erfolgsfall — bei diesem
+  Test hatten alle Entitäten bereits Punkte, er übersprang also korrekt alle.
 - **Die Routenqualität hängt an der Quelle, nicht am Code.** Die Companion-App
   meldet im Standardmodus nur bei deutlicher Bewegung oder Zonenwechsel — dann
   sind die Linien zwischen den Punkten gerade. „Hohe Genauigkeit" in der App
