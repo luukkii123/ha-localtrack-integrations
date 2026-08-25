@@ -49,6 +49,26 @@ MAINTENANCE_INTERVAL: Final = timedelta(hours=24)
 WS_TYPE_HISTORY: Final = "localtrack/history"
 WS_TYPE_STATS: Final = "localtrack/stats"
 
+# ── Import aus dem Recorder ────────────────────────────────────────────────
+SERVICE_IMPORT_HISTORY: Final = "import_history"
+
+ATTR_DAYS: Final = "days"
+ATTR_OVERWRITE: Final = "overwrite"
+ATTR_DRY_RUN: Final = "dry_run"
+
+# How far back an import may reach. The recorder's own `purge_keep_days`
+# usually cuts in long before this — measured on the development instance the
+# window was about seven days — but the service must not depend on a setting it
+# cannot read, so it simply asks for the range and takes what comes back.
+DEFAULT_IMPORT_DAYS: Final = 30
+MIN_IMPORT_DAYS: Final = 1
+MAX_IMPORT_DAYS: Final = 400
+
+# The recorder is queried one calendar day at a time. A dense tracker produces
+# tens of thousands of rows per day; asking for a whole month in one go would
+# hold all of them in memory at once for no gain.
+IMPORT_CHUNK = timedelta(days=1)
+
 DEFAULT_MAX_POINTS: Final = 2000
 MIN_MAX_POINTS: Final = 2
 MAX_MAX_POINTS: Final = 50000

@@ -17,17 +17,25 @@ import voluptuous as vol
 
 from homeassistant.components import websocket_api
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import (
-    ATTR_LATITUDE,
-    ATTR_LONGITUDE,
-    EVENT_STATE_CHANGED,
+from homeassistant.const import EVENT_STATE_CHANGED
+from homeassistant.core import (
+    Event,
+    HomeAssistant,
+    ServiceCall,
+    ServiceResponse,
+    SupportsResponse,
+    callback,
 )
-from homeassistant.core import Event, HomeAssistant, callback
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.event import async_track_time_interval
+from homeassistant.helpers.start import async_at_started
 from homeassistant.util import dt as dt_util
 
 from .const import (
+    ATTR_DAYS,
+    ATTR_DRY_RUN,
+    ATTR_OVERWRITE,
     CONF_DOWNSAMPLE_AFTER_DAYS,
     CONF_DOWNSAMPLE_INTERVAL_S,
     CONF_ENTITIES,
@@ -37,19 +45,25 @@ from .const import (
     DB_FILENAME,
     DEFAULT_DOWNSAMPLE_AFTER_DAYS,
     DEFAULT_DOWNSAMPLE_INTERVAL_S,
+    DEFAULT_IMPORT_DAYS,
     DEFAULT_MAX_POINTS,
     DEFAULT_MIN_DISTANCE_M,
     DEFAULT_MIN_INTERVAL_S,
     DEFAULT_RETENTION_DAYS,
     DOMAIN,
     MAINTENANCE_INTERVAL,
+    MAX_IMPORT_DAYS,
     MAX_MAX_POINTS,
+    MIN_IMPORT_DAYS,
     MIN_MAX_POINTS,
+    SERVICE_IMPORT_HISTORY,
     TRACKED_DOMAINS,
     WS_TYPE_HISTORY,
     WS_TYPE_STATS,
 )
-from .geo import haversine_m, simplify_to_max
+from .geo import simplify_to_max
+from .importer import RecorderUnavailable, async_import
+from .sampling import PointThinner, read_position
 from .store import LocationStore
 
 _LOGGER = logging.getLogger(__name__)
@@ -59,8 +73,18 @@ _LOGGER = logging.getLogger(__name__)
 LocalTrackConfigEntry = ConfigEntry["LocalTrackRuntime"]
 
 _WS_REGISTERED = "websocket_registered"
+_SERVICES_REGISTERED = "services_registered"
 
-ATTR_GPS_ACCURACY = "gps_accuracy"
+IMPORT_HISTORY_SCHEMA = vol.Schema(
+    {
+        vol.Optional("entity_id"): cv.entity_ids,
+        vol.Optional(ATTR_DAYS, default=DEFAULT_IMPORT_DAYS): vol.All(
+            vol.Coerce(int), vol.Range(min=MIN_IMPORT_DAYS, max=MAX_IMPORT_DAYS)
+        ),
+        vol.Optional(ATTR_OVERWRITE, default=False): cv.boolean,
+        vol.Optional(ATTR_DRY_RUN, default=False): cv.boolean,
+    }
+)
 
 
 def _setting(entry: LocalTrackConfigEntry, key: str, default: Any) -> Any:
@@ -103,8 +127,9 @@ class LocalTrackRuntime:
             _setting(entry, CONF_DOWNSAMPLE_INTERVAL_S, DEFAULT_DOWNSAMPLE_INTERVAL_S)
         )
 
-        # entity_id -> (ts, lat, lon) of the last point actually written.
-        self._last: dict[str, tuple[float, float, float]] = {}
+        # Shared with the recorder import, so a backfilled day comes out as
+        # dense as a recorded one. This instance belongs to the listener alone.
+        self.thinner = PointThinner(self.min_distance_m, self.min_interval_s)
         self._unsubscribe: list[Any] = []
 
     async def async_start(self) -> None:
@@ -112,7 +137,9 @@ class LocalTrackRuntime:
         for entity_id in self.entities:
             point = await self.store.last_point(entity_id)
             if point is not None:
-                self._last[entity_id] = (point["ts"], point["lat"], point["lon"])
+                self.thinner.seed(
+                    entity_id, point["ts"], point["lat"], point["lon"]
+                )
 
         self._unsubscribe.append(
             self.hass.bus.async_listen(EVENT_STATE_CHANGED, self._handle_state_changed)
@@ -152,57 +179,23 @@ class LocalTrackRuntime:
         if new_state is None:
             return
 
-        attributes = new_state.attributes
-        latitude = attributes.get(ATTR_LATITUDE)
-        longitude = attributes.get(ATTR_LONGITUDE)
         # A state change without coordinates is an attribute update such as
         # `last_time_reachable` — the noise the plan warns about. Drop it here,
         # before anything touches the database.
-        if latitude is None or longitude is None:
+        position = read_position(new_state.attributes)
+        if position is None:
             return
-
-        try:
-            lat = float(latitude)
-            lon = float(longitude)
-        except (TypeError, ValueError):
-            return
-        if not (-90.0 <= lat <= 90.0 and -180.0 <= lon <= 180.0):
-            return
+        lat, lon, accuracy = position
 
         timestamp = new_state.last_updated.timestamp()
-        if not self._should_store(entity_id, timestamp, lat, lon):
+        if not self.thinner.accept(entity_id, timestamp, lat, lon):
             return
 
-        accuracy: float | None
-        try:
-            raw_accuracy = attributes.get(ATTR_GPS_ACCURACY)
-            accuracy = None if raw_accuracy is None else float(raw_accuracy)
-        except (TypeError, ValueError):
-            accuracy = None
-
-        self._last[entity_id] = (timestamp, lat, lon)
         self.entry.async_create_background_task(
             self.hass,
             self.store.insert_point(entity_id, timestamp, lat, lon, accuracy),
             name=f"localtrack insert {entity_id}",
         )
-
-    def _should_store(
-        self, entity_id: str, timestamp: float, lat: float, lon: float
-    ) -> bool:
-        """Keep a point if it moved far enough *or* waited long enough.
-
-        The distance half kills GPS jitter while standing still; the time half
-        guarantees a heartbeat so a long stay still has points to draw.
-        """
-        previous = self._last.get(entity_id)
-        if previous is None:
-            return True
-        last_ts, last_lat, last_lon = previous
-        elapsed = timestamp - last_ts
-        if elapsed >= self.min_interval_s:
-            return True
-        return haversine_m(last_lat, last_lon, lat, lon) >= self.min_distance_m
 
     # ── Retention and downsampling ────────────────────────────────────────
 
@@ -242,8 +235,101 @@ async def async_setup_entry(hass: HomeAssistant, entry: LocalTrackConfigEntry) -
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = runtime
 
     _async_register_websocket_api(hass)
+    _async_register_services(hass)
+    _async_schedule_initial_import(hass, entry, runtime)
     entry.async_on_unload(entry.add_update_listener(async_reload_entry))
     return True
+
+
+@callback
+def _async_schedule_initial_import(
+    hass: HomeAssistant, entry: LocalTrackConfigEntry, runtime: LocalTrackRuntime
+) -> None:
+    """Backfill entities that hold no points yet, once Home Assistant is up.
+
+    "Has this entry ever been imported?" is deliberately **not** remembered in
+    the entry: writing a flag into the options fires the update listener and
+    reloads the entry, and the flag would then also have to be migrated. The
+    data answers the question by itself — an entity with points has been
+    covered, an entity without any has not. That is self-limiting (a successful
+    import stops the next one) and does the right thing when the user adds a
+    new person later or deletes the database on purpose.
+
+    An empty recorder therefore means one wasted query per entity per restart.
+    That is the honest price of not keeping a flag, and it is paid in
+    milliseconds.
+    """
+
+    async def _run(_now: Any = None) -> None:
+        pending = []
+        for entity_id in sorted(runtime.entities):
+            if await runtime.store.last_point(entity_id) is None:
+                pending.append(entity_id)
+        if not pending:
+            return
+        _LOGGER.info(
+            "Local Track: no stored points for %s — importing from the recorder",
+            ", ".join(pending),
+        )
+        try:
+            await async_import(hass, runtime, pending, DEFAULT_IMPORT_DAYS)
+        except RecorderUnavailable as err:
+            _LOGGER.warning("Local Track: initial import skipped — %s", err)
+        except Exception:  # noqa: BLE001 - a failed backfill must not kill setup
+            _LOGGER.exception("Local Track: initial import failed")
+
+    @callback
+    def _start(_hass: HomeAssistant) -> None:
+        # Not awaited inside setup: the recorder may still be catching up, and
+        # a backfill of several days must never hold up Home Assistant's start.
+        entry.async_create_background_task(
+            hass, _run(), name="localtrack initial import"
+        )
+
+    entry.async_on_unload(async_at_started(hass, _start))
+
+
+@callback
+def _async_register_services(hass: HomeAssistant) -> None:
+    """Register the import service once per Home Assistant run."""
+    domain_data = hass.data.setdefault(DOMAIN, {})
+    if domain_data.get(_SERVICES_REGISTERED):
+        return
+
+    async def _handle_import(call: ServiceCall) -> ServiceResponse:
+        runtime = _get_runtime(hass)
+        if runtime is None:
+            raise HomeAssistantError("Local Track is not set up")
+
+        requested = call.data.get("entity_id") or sorted(runtime.entities)
+        unknown = [item for item in requested if item not in runtime.entities]
+        if unknown:
+            # Importing an entity that nothing records afterwards would leave a
+            # stub of history that never grows — almost certainly a typo.
+            raise HomeAssistantError(
+                "Local Track does not record " + ", ".join(unknown)
+            )
+
+        try:
+            return await async_import(
+                hass,
+                runtime,
+                list(requested),
+                call.data[ATTR_DAYS],
+                overwrite=call.data[ATTR_OVERWRITE],
+                dry_run=call.data[ATTR_DRY_RUN],
+            )
+        except RecorderUnavailable as err:
+            raise HomeAssistantError(str(err)) from err
+
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_IMPORT_HISTORY,
+        _handle_import,
+        schema=IMPORT_HISTORY_SCHEMA,
+        supports_response=SupportsResponse.OPTIONAL,
+    )
+    domain_data[_SERVICES_REGISTERED] = True
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: LocalTrackConfigEntry) -> bool:

@@ -1,0 +1,31 @@
+import_history:
+  fields:
+    entity_id:
+      required: false
+      example: person.lukas
+      selector:
+        entity:
+          multiple: true
+          domain:
+            - person
+            - device_tracker
+    days:
+      required: false
+      default: 30
+      selector:
+        number:
+          min: 1
+          max: 400
+          step: 1
+          mode: box
+          unit_of_measurement: d
+    overwrite:
+      required: false
+      default: false
+      selector:
+        boolean:
+    dry_run:
+      required: false
+      default: false
+      selector:
+        boolean:

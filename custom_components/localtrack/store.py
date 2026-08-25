@@ -103,6 +103,60 @@ class LocationStore:
             )
             await db.commit()
 
+    async def insert_points(
+        self, rows: list[tuple[str, float, float, float, float | None]]
+    ) -> int:
+        """Append many points in a single transaction. Returns the row count.
+
+        Not a loop over `insert_point`: an import writes thousands of rows, and
+        one `commit()` per row would fsync the disk thousands of times. That is
+        the difference between a backfill that takes seconds and one that takes
+        minutes while holding the store's lock.
+        """
+        if not rows:
+            return 0
+        db = self._require_db()
+        async with self._lock:
+            await db.executemany(
+                "INSERT INTO points (entity_id, ts, lat, lon, accuracy)"
+                " VALUES (?, ?, ?, ?, ?)",
+                rows,
+            )
+            await db.commit()
+        return len(rows)
+
+    async def count_range(self, entity_id: str, start: float, end: float) -> int:
+        """How many points of one entity already sit in [start, end].
+
+        The import asks this before writing a day: `points` has no unique key on
+        (entity_id, ts), so a second run over the same day would silently double
+        it. Counting first is cheaper than adding a constraint to a table that
+        may already hold duplicates from before.
+        """
+        db = self._require_db()
+        async with self._lock:
+            cursor = await db.execute(
+                "SELECT COUNT(*) AS n FROM points"
+                " WHERE entity_id = ? AND ts >= ? AND ts <= ?",
+                (entity_id, start, end),
+            )
+            row = await cursor.fetchone()
+            await cursor.close()
+        return int(row["n"]) if row is not None else 0
+
+    async def delete_range(self, entity_id: str, start: float, end: float) -> int:
+        """Drop one entity's points in [start, end]. Returns rows deleted."""
+        db = self._require_db()
+        async with self._lock:
+            cursor = await db.execute(
+                "DELETE FROM points WHERE entity_id = ? AND ts >= ? AND ts <= ?",
+                (entity_id, start, end),
+            )
+            deleted = cursor.rowcount
+            await cursor.close()
+            await db.commit()
+        return max(0, deleted)
+
     async def query_range(
         self, entity_id: str, start: float, end: float
     ) -> list[dict[str, Any]]:

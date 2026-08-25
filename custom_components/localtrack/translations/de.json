@@ -35,5 +35,29 @@
     "error": {
       "no_entities": "Mindestens eine Person oder einen Device-Tracker auswählen."
     }
+  },
+  "services": {
+    "import_history": {
+      "name": "Verlauf importieren",
+      "description": "Holt vorhandene Standorte aus dem Recorder von Home Assistant nach. Weiter zurück als der Recorder selbst reicht das nicht — meist wenige Tage, bestimmt durch purge_keep_days. Ein Tag, für den schon Punkte vorliegen, wird übersprungen, sofern „Überschreiben“ aus ist.",
+      "fields": {
+        "entity_id": {
+          "name": "Entitäten",
+          "description": "Welche aufgezeichneten Entitäten importiert werden. Leer bedeutet alle, die dieser Eintrag aufzeichnet."
+        },
+        "days": {
+          "name": "Tage zurück",
+          "description": "Wie weit zurück der Recorder gefragt wird. Was er bereits aufgeräumt hat, ist nicht wiederherstellbar."
+        },
+        "overwrite": {
+          "name": "Überschreiben",
+          "description": "Löscht die gespeicherten Punkte eines Tages, bevor er erneut importiert wird. Aus bedeutet: solche Tage bleiben unangetastet."
+        },
+        "dry_run": {
+          "name": "Trockenlauf",
+          "description": "Nur zählen, nichts schreiben. Damit lässt sich vorher sehen, wie viel ankäme."
+        }
+      }
+    }
   }
 }

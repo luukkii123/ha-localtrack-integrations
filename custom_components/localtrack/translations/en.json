@@ -35,5 +35,29 @@
     "error": {
       "no_entities": "Pick at least one person or device tracker."
     }
+  },
+  "services": {
+    "import_history": {
+      "name": "Import history",
+      "description": "Backfills the store from Home Assistant's recorder. It can only reach as far back as the recorder still keeps data — usually a few days, set by purge_keep_days. A day that already holds points is skipped unless Overwrite is on.",
+      "fields": {
+        "entity_id": {
+          "name": "Entities",
+          "description": "Which recorded entities to import. Empty means all entities this entry records."
+        },
+        "days": {
+          "name": "Days back",
+          "description": "How far back to ask the recorder. Anything the recorder has already purged cannot be recovered."
+        },
+        "overwrite": {
+          "name": "Overwrite",
+          "description": "Delete a day's stored points before importing it again. Off means such a day is left untouched."
+        },
+        "dry_run": {
+          "name": "Dry run",
+          "description": "Count only, write nothing. Use it to see how much would arrive before it does."
+        }
+      }
+    }
   }
 }
