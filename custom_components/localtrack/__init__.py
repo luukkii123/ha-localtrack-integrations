@@ -10,7 +10,8 @@ from __future__ import annotations
 
 import logging
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
+from functools import partial
 from typing import Any
 
 import voluptuous as vol
@@ -46,25 +47,34 @@ from .const import (
     DEFAULT_DOWNSAMPLE_AFTER_DAYS,
     DEFAULT_DOWNSAMPLE_INTERVAL_S,
     DEFAULT_IMPORT_DAYS,
+    DEFAULT_MAX_GAP_S,
     DEFAULT_MAX_POINTS,
     DEFAULT_MIN_DISTANCE_M,
     DEFAULT_MIN_INTERVAL_S,
+    DEFAULT_MIN_VISIT_S,
     DEFAULT_RETENTION_DAYS,
     DOMAIN,
     MAINTENANCE_INTERVAL,
     MAX_IMPORT_DAYS,
+    MAX_GAP_LIMIT_S,
     MAX_MAX_POINTS,
+    MAX_VISIT_LIMIT_S,
+    MAX_ZONE_TIME_DAYS,
     MIN_IMPORT_DAYS,
+    MIN_GAP_LIMIT_S,
     MIN_MAX_POINTS,
+    MIN_VISIT_LIMIT_S,
     SERVICE_IMPORT_HISTORY,
     TRACKED_DOMAINS,
     WS_TYPE_HISTORY,
     WS_TYPE_STATS,
+    WS_TYPE_ZONE_TIME,
 )
 from .geo import simplify_to_max
 from .importer import RecorderUnavailable, async_import
 from .sampling import PointThinner, read_position
 from .store import LocationStore
+from .zonetime import compute_zone_time
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -358,6 +368,7 @@ def _async_register_websocket_api(hass: HomeAssistant) -> None:
         return
     websocket_api.async_register_command(hass, _ws_history)
     websocket_api.async_register_command(hass, _ws_stats)
+    websocket_api.async_register_command(hass, _ws_zone_time)
     domain_data[_WS_REGISTERED] = True
 
 
@@ -446,3 +457,84 @@ async def _ws_stats(
     stats = await runtime.store.async_stats()
     stats["tracked"] = sorted(runtime.entities)
     connection.send_result(msg["id"], stats)
+
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): WS_TYPE_ZONE_TIME,
+        vol.Required("entity_id"): cv.entity_id,
+        vol.Required("latitude"): vol.All(vol.Coerce(float), vol.Range(min=-90, max=90)),
+        vol.Required("longitude"): vol.All(
+            vol.Coerce(float), vol.Range(min=-180, max=180)
+        ),
+        vol.Required("radius"): vol.All(
+            vol.Coerce(float), vol.Range(min=1, max=100000)
+        ),
+        vol.Required("start"): cv.datetime,
+        vol.Required("end"): cv.datetime,
+        vol.Optional("min_visit_s", default=DEFAULT_MIN_VISIT_S): vol.All(
+            vol.Coerce(int), vol.Range(min=MIN_VISIT_LIMIT_S, max=MAX_VISIT_LIMIT_S)
+        ),
+        vol.Optional("max_gap_s", default=DEFAULT_MAX_GAP_S): vol.All(
+            vol.Coerce(int), vol.Range(min=MIN_GAP_LIMIT_S, max=MAX_GAP_LIMIT_S)
+        ),
+    }
+)
+@websocket_api.async_response
+async def _ws_zone_time(
+    hass: HomeAssistant,
+    connection: websocket_api.ActiveConnection,
+    msg: dict[str, Any],
+) -> None:
+    """Verweildauer je Tag im Umkreis eines Punktes.
+
+    Die Karte schickt Mittelpunkt und Radius mit, statt eine Zonen-ID: so muss
+    diese Integration nichts ueber Zonen wissen, bleibt unabhaengig von deren
+    Attributnamen — und derselbe Befehl beantwortet auch "wie lange war ich im
+    Umkreis von 200 m um diesen Punkt", ohne dass es dafuer eine Zone braucht.
+
+    Die Tagesgrenzen sind lokale Mitternacht des HA-Hosts, nicht des Browsers:
+    ein Haushalt soll dieselbe Zahl sehen, egal von welchem Geraet.
+    """
+    runtime = _get_runtime(hass)
+    if runtime is None:
+        connection.send_error(
+            msg["id"],
+            websocket_api.const.ERR_NOT_FOUND,
+            "Local Track is not set up",
+        )
+        return
+
+    start = dt_util.as_utc(msg["start"])
+    end = dt_util.as_utc(msg["end"])
+    if end < start:
+        start, end = end, start
+    if (end - start) > timedelta(days=MAX_ZONE_TIME_DAYS):
+        connection.send_error(
+            msg["id"],
+            websocket_api.const.ERR_INVALID_FORMAT,
+            f"Range is longer than {MAX_ZONE_TIME_DAYS} days",
+        )
+        return
+
+    points = await runtime.store.query_range(
+        msg["entity_id"], start.timestamp(), end.timestamp()
+    )
+    # CPU-gebunden bei zehntausenden Punkten — gehoert in einen Ausfuehrer,
+    # genau wie `simplify_to_max` bei `localtrack/history`.
+    result = await hass.async_add_executor_job(
+        partial(
+            compute_zone_time,
+            points,
+            msg["latitude"],
+            msg["longitude"],
+            msg["radius"],
+            dt_util.DEFAULT_TIME_ZONE,
+            msg["min_visit_s"],
+            msg["max_gap_s"],
+        )
+    )
+    result["entity_id"] = msg["entity_id"]
+    result["from"] = start.isoformat()
+    result["to"] = end.isoformat()
+    connection.send_result(msg["id"], result)

@@ -48,6 +48,26 @@ MAINTENANCE_INTERVAL: Final = timedelta(hours=24)
 
 WS_TYPE_HISTORY: Final = "localtrack/history"
 WS_TYPE_STATS: Final = "localtrack/stats"
+WS_TYPE_ZONE_TIME: Final = "localtrack/zone_time"
+
+# ── Verweildauer im Umkreis ────────────────────────────────────────────────
+# Ein Aufenthalt unter dieser Dauer zaehlt gar nicht. Ohne die Schwelle
+# sammeln Vorbeifahrten ueber einen Monat sichtbar Zeit an — gerade bei den
+# kleinen Zonen dieser Installation (Stix 19 m, Eisdiele 35 m), die kleiner
+# sind als die uebliche GPS-Streuung.
+DEFAULT_MIN_VISIT_S: Final = 300
+MIN_VISIT_LIMIT_S: Final = 0
+MAX_VISIT_LIMIT_S: Final = 21600
+
+# Groessere Luecken werden nicht als Anwesenheit gutgeschrieben und trennen
+# den Aufenthalt. Lieber zu wenig als erfunden.
+DEFAULT_MAX_GAP_S: Final = 900
+MIN_GAP_LIMIT_S: Final = 60
+MAX_GAP_LIMIT_S: Final = 86400
+
+# Ohne Grenze holt eine vertippte Null Jahre an Punkten in den Speicher —
+# dieselbe Ueberlegung, die MAX_MAX_POINTS bei localtrack/history traegt.
+MAX_ZONE_TIME_DAYS: Final = 366
 
 # ── Import aus dem Recorder ────────────────────────────────────────────────
 SERVICE_IMPORT_HISTORY: Final = "import_history"
