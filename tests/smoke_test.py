@@ -55,6 +55,7 @@ sys.modules.setdefault("homeassistant.util.dt", _dt)
 from localtrack import importer  # noqa: E402
 from localtrack.sampling import PointThinner, read_position  # noqa: E402
 from localtrack.store import LocationStore  # noqa: E402
+from localtrack.zonetime import compute_zone_time  # noqa: E402
 
 PASSED = 0
 FAILED: list[str] = []
@@ -364,9 +365,116 @@ async def test_import_summary() -> None:
         importer._fetch_states = original
 
 
+# ── Verweildauer ───────────────────────────────────────────────────────────
+# Zone fuer alle Faelle: Mittelpunkt (48.2, 16.35), Radius 100 m.
+ZL, ZO, ZR = 48.2, 16.35, 100.0
+DRIN = (48.2, 16.35)          # 0 m vom Mittelpunkt
+DRAUSSEN = (48.21, 16.35)     # rund 1110 m entfernt
+TZ = timezone(timedelta(hours=2))   # Europe/Vienna im Sommer
+
+
+def _pts(spec):
+    """spec: Liste (ts, drin?) -> Punktliste in der Form des Speichers."""
+    out = []
+    for ts, inside in spec:
+        lat, lon = DRIN if inside else DRAUSSEN
+        out.append({"ts": float(ts), "lat": lat, "lon": lon})
+    return out
+
+
+def _tag(ymd, h=0, m=0):
+    return datetime(*ymd, h, m, tzinfo=TZ).timestamp()
+
+
+def test_zonetime() -> None:
+    # 1. Einfacher Besuch: 08:00-09:00, Takt 30 s, alles drin.
+    spec = [(_tag((2026, 9, 3), 8, 0) + i * 30, True) for i in range(121)]
+    r = compute_zone_time(_pts(spec), ZL, ZO, ZR, TZ, 300, 900)
+    check("zonetime: ein Tag", len(r["days"]) == 1, str(r["days"]))
+    check("zonetime: netto = 3600 s", abs(r["days"][0]["net_s"] - 3600) < 1,
+          str(r["days"][0]))
+    check("zonetime: brutto = netto ohne Pause",
+          r["days"][0]["gross_s"] == r["days"][0]["net_s"], str(r["days"][0]))
+    check("zonetime: ein Besuch", r["days"][0]["visits"] == 1)
+    check("zonetime: Datum lokal", r["days"][0]["date"] == "2026-09-03",
+          r["days"][0]["date"])
+
+    # 2. Durchfahrt unter der Mindestdauer faellt ganz weg.
+    base = _tag((2026, 9, 4), 12, 0)
+    spec = [(base - 30, False), (base, True), (base + 30, True), (base + 60, False)]
+    r = compute_zone_time(_pts(spec), ZL, ZO, ZR, TZ, 300, 900)
+    check("zonetime: Durchfahrt faellt weg", r["days"] == [], str(r["days"]))
+
+    # 3. Deckelung: zwei Punkte drin, zwei Stunden auseinander.
+    base = _tag((2026, 9, 5), 9, 0)
+    spec = [(base, True), (base + 7200, True)]
+    r = compute_zone_time(_pts(spec), ZL, ZO, ZR, TZ, 0, 900)
+    check("zonetime: Luecke gedeckelt auf max_gap_s",
+          abs(r["total_net_s"] - 900) < 1, f"{r['total_net_s']} statt 900")
+    check("zonetime: Luecke teilt den Besuch", r["days"][0]["visits"] == 2,
+          str(r["days"][0]))
+    check("zonetime: brutto ueberspannt die Luecke",
+          abs(r["days"][0]["gross_s"] - 7200) < 1, str(r["days"][0]))
+
+    # 4. Uebertritt zaehlt halb: drin 30 s, je 30 s Nachbarluecke -> 60 s.
+    base = _tag((2026, 9, 6), 9, 0)
+    spec = [(base, False), (base + 30, True), (base + 60, True), (base + 90, False)]
+    r = compute_zone_time(_pts(spec), ZL, ZO, ZR, TZ, 0, 900)
+    check("zonetime: Uebertritt haelftig", abs(r["total_net_s"] - 60) < 1,
+          f"{r['total_net_s']} statt 60")
+
+    # 5. Mitternacht: 23:00 bis 01:00, Takt 60 s.
+    start = _tag((2026, 9, 7), 23, 0)
+    spec = [(start + i * 60, True) for i in range(121)]
+    r = compute_zone_time(_pts(spec), ZL, ZO, ZR, TZ, 300, 900)
+    check("zonetime: zwei Tage",
+          [d["date"] for d in r["days"]] == ["2026-09-07", "2026-09-08"],
+          str([d["date"] for d in r["days"]]))
+    check("zonetime: Tag 1 bekommt 3600 s", abs(r["days"][0]["net_s"] - 3600) < 1,
+          str(r["days"][0]))
+    check("zonetime: Tag 2 bekommt 3600 s", abs(r["days"][1]["net_s"] - 3600) < 1,
+          str(r["days"][1]))
+
+    # 6. Mindestdauer greift am GANZEN Besuch: 23:58 bis 00:05 = 7 min.
+    start = _tag((2026, 9, 9), 23, 58)
+    spec = [(start + i * 30, True) for i in range(15)]
+    r = compute_zone_time(_pts(spec), ZL, ZO, ZR, TZ, 300, 900)
+    check("zonetime: Besuch ueberlebt trotz kurzer Tagesanteile",
+          [d["date"] for d in r["days"]] == ["2026-09-09", "2026-09-10"],
+          str([d["date"] for d in r["days"]]))
+    check("zonetime: Tag 1 haelt 120 s", abs(r["days"][0]["net_s"] - 120) < 1,
+          str(r["days"][0]))
+
+    # 7. brutto >= netto, immer: zwei Besuche am selben Tag mit Pause.
+    base = _tag((2026, 9, 11), 8, 0)
+    spec = ([(base + i * 30, True) for i in range(41)]
+            + [(base + 3600, False)]
+            + [(base + 7200 + i * 30, True) for i in range(41)])
+    r = compute_zone_time(_pts(spec), ZL, ZO, ZR, TZ, 300, 900)
+    d = r["days"][0]
+    check("zonetime: zwei Besuche", d["visits"] == 2, str(d))
+    check("zonetime: brutto > netto bei Pause", d["gross_s"] > d["net_s"], str(d))
+
+    # 8. Leerer Zeitraum.
+    r = compute_zone_time([], ZL, ZO, ZR, TZ, 300, 900)
+    check("zonetime: leere Eingabe", r["days"] == [] and r["total_net_s"] == 0)
+
+    # 9. Zeitzone: 23:30 UTC gehoert bei +02:00 zum naechsten lokalen Tag.
+    start = datetime(2026, 9, 12, 23, 30, tzinfo=timezone.utc).timestamp()
+    spec = [(start + i * 60, True) for i in range(31)]
+    r = compute_zone_time(_pts(spec), ZL, ZO, ZR, TZ, 300, 900)
+    check("zonetime: Tagesgrenze ist HA-lokal",
+          r["days"][0]["date"] == "2026-09-13", r["days"][0]["date"])
+
+    # 10. brutto nie kleiner als netto - Invariante ueber alle Faelle oben.
+    check("zonetime: Invariante brutto >= netto",
+          all(d["gross_s"] >= d["net_s"] - 1e-6 for d in r["days"]))
+
+
 async def main() -> int:
     test_read_position()
     test_thinner()
+    test_zonetime()
     await test_store()
     await test_importer()
     await test_import_summary()
