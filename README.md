@@ -3,7 +3,7 @@
 [![HACS Custom](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://hacs.xyz/)
 
 **Speichert die Standorte ausgewählter `person.*`- und `device_tracker.*`-Entitäten
-dauerhaft in einer eigenen SQLite-Datei und gibt sie über zwei
+dauerhaft in einer eigenen SQLite-Datei und gibt sie über drei
 WebSocket-Kommandos ans Dashboard.**
 
 ## Wofür das gut ist
@@ -16,8 +16,10 @@ Local Track schreibt genau die Entitäten, um die es geht, in eine eigene Datei,
 die der Recorder nie anfasst. Punkte werden beim Schreiben entdoppelt und nach
 einer Weile ausgedünnt, damit die Datei nicht unbegrenzt wächst.
 
-Wer das Ganze **sehen** will, braucht zusätzlich die Karte
-**`localtrack-timeline-card`** aus dem Repo
+Wer das Ganze **sehen** will, braucht zusätzlich die Karten
+**`localtrack-timeline-card`** (Tages-Track auf der Landkarte) und
+**`localtrack-zone-time-card`** (Verweildauer an einem Ort, Monat als
+Tagesliste) aus dem Repo
 [ha-localtrack-cards](https://github.com/luukkii123/ha-localtrack-cards) —
 Karten und Integrationen lassen sich in HACS nicht im selben Repository
 ausliefern, deshalb zwei.
@@ -66,8 +68,9 @@ Stand, das Zeitintervall sorgt dafür, dass auch ein langer Aufenthalt Punkte ha
 
 Eine Änderung der Optionen lädt die Integration neu.
 
-**Es ist nur ein Eintrag möglich.** Es gibt eine Datenbank und ein
-WebSocket-Kommando; ein zweiter Eintrag würde mit dem ersten um beides streiten.
+**Es ist nur ein Eintrag möglich.** Es gibt eine Datenbank und einen Satz
+WebSocket-Kommandos; ein zweiter Eintrag würde mit dem ersten um beides
+streiten.
 
 ## Was danach passiert
 
@@ -225,6 +228,80 @@ await hass.callWS({ type: "localtrack/stats" });
 `entities` zählt, was **in der Datei** steht (auch von Entitäten, die inzwischen
 nicht mehr aufgezeichnet werden), `tracked` nennt, was **gerade** aufgezeichnet
 wird.
+
+### `localtrack/zone_time` — wie lange im Umkreis, Tag für Tag
+
+Beantwortet „wie lange war ich diesen Monat bei der Arbeit". Die Rechnung
+läuft hier und nicht im Browser: ein Monat sind bei einer dicht meldenden
+Person rund **92 000 Punkte ≈ 6,6 MB**, und `localtrack/history` würde darüber
+mit Douglas-Peucker vereinfachen — das erhält die *Form* der Route und wirft
+gerade die zeitliche Dichte weg, also genau das, worum es hier geht.
+
+```js
+await hass.callWS({
+  type: "localtrack/zone_time",
+  entity_id: "person.beispiel",
+  latitude: 48.2015943, longitude: 16.3566148, radius: 138,
+  start: "2026-09-01T00:00:00", end: "2026-09-30T23:59:59",
+  min_visit_s: 300,   // optional, Standard 300, 0–6 h
+  max_gap_s: 900,     // optional, Standard 900, 60 s–24 h
+});
+// → { entity_id, from, to,
+//     days: [{ date, net_s, gross_s, visits, first_ts, last_ts }],
+//     total_net_s, total_gross_s, total_visits, days_present }
+```
+
+**Koordinaten statt Zonen-ID.** Die Integration weiß damit nichts über Zonen,
+bleibt unabhängig von deren Attributnamen, und derselbe Befehl beantwortet
+auch „wie lange war ich im Umkreis von 200 m um diesen Punkt".
+
+**Tagesgrenzen sind lokale Mitternacht des HA-Hosts**, nicht des Browsers: ein
+Haushalt soll dieselbe Zahl sehen, egal von welchem Gerät. Das weicht bewusst
+von `localtrack/history` ab, wo der Aufrufer die Grenzen selbst setzt.
+
+**Nur Tage mit Anwesenheit stehen in `days`.** Das halbiert die Antwort; die
+Karte füllt den Monat auf. Der Zeitraum ist auf **366 Tage** begrenzt.
+
+#### netto und brutto — und warum beide
+
+| Feld | Bedeutung |
+| --- | --- |
+| `net_s` | Summe der Sekunden tatsächlich im Umkreis |
+| `gross_s` | letzte Abfahrt minus erste Ankunft **desselben Tages** |
+
+Es gilt immer `gross_s >= net_s`; die Differenz ist die Zeit außerhalb —
+Mittagspause, Botengang, oder ein Datenloch.
+
+Drei Regeln, alle dieselbe Haltung — **lieber zu wenig als erfunden**:
+
+- **Der Übertritt zählt halb.** Liegt ein Punkt drin und der nächste draußen,
+  lag die Grenze dazwischen; gutgeschrieben wird die halbe Lücke. Bei
+  30-Sekunden-Takt sind das ±15 s je Übertritt.
+- **Eine Lücke größer als `max_gap_s` trennt den Aufenthalt**, auch wenn beide
+  Punkte drin liegen. Ist das Handy zwei Stunden aus, werden 15 Minuten
+  gutgeschrieben statt zwei Stunden erfunden — `gross_s` zeigt die Spanne
+  trotzdem, und die Differenz macht das Loch sichtbar.
+- **`min_visit_s` greift am ganzen Besuch**, vor der Tagesaufteilung. Sonst
+  verlöre eine Nachtschicht ihren ersten Abend, weil der Anteil dort unter der
+  Schwelle liegt.
+
+#### Warum nicht die Zustandshistorie der `person`-Entität
+
+Naheliegend wäre, zu zählen, wie lange `person.x` den Zustand `Arbeit` hatte.
+**Das flackert.** An einer laufenden Installation gemessen:
+
+```
+09:38:02  SCN      →  09:38:05  not_home   (3 s)
+11:00:40  Spar     →  11:00:46  not_home   (6 s)
+11:20:17  Schule   →  11:20:22  not_home   (5 s)
+```
+
+Überlappende Zonen, Home Assistant zeigt die kleinste, GPS-Zittern schiebt den
+Punkt im Sekundentakt über die Grenzen. Die geometrische Rechnung auf den
+gespeicherten Punkten flackert an der Grenze zwar auch — für eine **Tagessumme**
+ist das folgenlos, und `min_visit_s` wirft die Vorbeifahrten ohnehin weg. Das
+zählt besonders bei kleinen Zonen: 19 m Radius ist weniger als die übliche
+GPS-Streuung.
 
 **Fehlt der Eintrag, ist die Antwort `unknown_command`, nicht `not_found`.**
 Das ist kein Haarspalten, sondern der häufigste Fall: Registriert werden die
