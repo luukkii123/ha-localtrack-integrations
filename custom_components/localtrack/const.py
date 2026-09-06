@@ -61,7 +61,17 @@ MAX_VISIT_LIMIT_S: Final = 21600
 
 # Groessere Luecken werden nicht als Anwesenheit gutgeschrieben und trennen
 # den Aufenthalt. Lieber zu wenig als erfunden.
-DEFAULT_MAX_GAP_S: Final = 900
+#
+# 30 Minuten, nicht 15: am 05.09.2026 an echten Daten gemessen. Die
+# Meldedichte der Companion-App haengt an der Bewegung, nicht am Ort — an
+# einem Tag zu Hause kamen nur 141 Punkte mit Luecken ueber einer Stunde,
+# an einem Tag unterwegs 4232 im 30-Sekunden-Takt. Mit 900 s las derselbe
+# Tag 12,6 h statt 23,8 h brutto (53 %), mit 1800 s 15,8 h (67 %), mit
+# 3600 s 18,9 h (79 %). Ein Standardwert, der die Hauptzahl halbiert, ist
+# ein schlechter Standardwert; 3600 s wuerde dagegen eine echte einstuendige
+# Abwesenheit voll gutschreiben. 1800 s ist der Kompromiss, und die
+# Bruttospalte zeigt die Obergrenze ohnehin.
+DEFAULT_MAX_GAP_S: Final = 1800
 MIN_GAP_LIMIT_S: Final = 60
 MAX_GAP_LIMIT_S: Final = 86400
 

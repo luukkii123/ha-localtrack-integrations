@@ -244,7 +244,7 @@ await hass.callWS({
   latitude: 48.2015943, longitude: 16.3566148, radius: 138,
   start: "2026-09-01T00:00:00", end: "2026-09-30T23:59:59",
   min_visit_s: 300,   // optional, Standard 300, 0–6 h
-  max_gap_s: 900,     // optional, Standard 900, 60 s–24 h
+  max_gap_s: 1800,    // optional, Standard 1800, 60 s–24 h
 });
 // → { entity_id, from, to,
 //     days: [{ date, net_s, gross_s, visits, first_ts, last_ts }],
@@ -278,9 +278,31 @@ Drei Regeln, alle dieselbe Haltung — **lieber zu wenig als erfunden**:
   lag die Grenze dazwischen; gutgeschrieben wird die halbe Lücke. Bei
   30-Sekunden-Takt sind das ±15 s je Übertritt.
 - **Eine Lücke größer als `max_gap_s` trennt den Aufenthalt**, auch wenn beide
-  Punkte drin liegen. Ist das Handy zwei Stunden aus, werden 15 Minuten
+  Punkte drin liegen. Ist das Handy zwei Stunden aus, werden 30 Minuten
   gutgeschrieben statt zwei Stunden erfunden — `gross_s` zeigt die Spanne
   trotzdem, und die Differenz macht das Loch sichtbar.
+
+#### Wie `max_gap_s` zu wählen ist
+
+**Die Meldedichte hängt an der Bewegung, nicht am Ort.** An einem Tag
+unterwegs kamen 4232 Punkte im 30-Sekunden-Takt, an einem Tag zu Hause nur
+**141 mit Lücken über einer Stunde** — dieselbe Person, dasselbe Handy, zwei
+Tage auseinander. Wer stillsitzt, meldet selten.
+
+Derselbe Tag zu Hause, verschiedene Werte:
+
+| `max_gap_s` | netto | „Besuche" | Anteil an brutto |
+| --- | --- | --- | --- |
+| 900 (15 min) | 12,6 h | 28 | 53 % |
+| **1800 (30 min, Standard)** | **15,8 h** | **11** | **67 %** |
+| 3600 (60 min) | 18,9 h | 6 | 79 % |
+| — | brutto 23,8 h | | 100 % |
+
+Der Standard liegt bei 1800 s, weil 900 s die Hauptzahl halbiert und 3600 s
+eine echte einstündige Abwesenheit voll gutschreiben würde. **Wer viel
+stillsitzt, darf höher gehen** — die Bruttospalte zeigt die Obergrenze
+ohnehin, und die Zahl der „Besuche" ist ein guter Hinweis: zerfällt ein Tag
+in zwanzig Aufenthalte, ist der Wert zu niedrig.
 - **`min_visit_s` greift am ganzen Besuch**, vor der Tagesaufteilung. Sonst
   verlöre eine Nachtschicht ihren ersten Abend, weil der Anteil dort unter der
   Schwelle liegt.
