@@ -1,0 +1,83 @@
+# Integration Quality Scale — Stand 09.09.2026.
+# Mindestmaß laut docs/ui-regeln.md, Regel 3, ist Bronze. Hier steht der
+# ehrliche Stand jeder Bronze-Regel, nicht der gewünschte. `manifest.json`
+# führt bewusst KEINEN `quality_scale`-Schlüssel: der wäre eine Behauptung,
+# solange `config-flow-test-coverage` und `action-setup` offen sind.
+rules:
+  action-setup:
+    status: todo
+    comment: >-
+      `localtrack.import_history` wird in `async_setup_entry` registriert
+      (__init__.py, _async_register_services). Bronze verlangt die
+      Registrierung in `async_setup`, damit die Aktion auch ohne geladenen
+      Eintrag existiert und dann sauber scheitert.
+  appropriate-polling:
+    status: exempt
+    comment: >-
+      `iot_class: local_push`. Standorte kommen als `EVENT_STATE_CHANGED`
+      herein; der einzige Timer ist das nächtliche Aufräumen des Speichers.
+  brands: done
+  common-modules:
+    status: exempt
+    comment: >-
+      Die Integration hat weder Coordinator noch Entitäten; es gibt nichts,
+      was in `coordinator.py` oder `entity.py` gehörte.
+  config-flow-test-coverage:
+    status: todo
+    comment: >-
+      `tests/smoke_test.py` prüft Ausdünnung, Speicher und Recorder-Import
+      ohne Home Assistant. Für den Config-Flow gibt es keine
+      pytest-Abdeckung, weil auf dem Entwicklungsrechner kein Home Assistant
+      installiert ist.
+  config-flow: done
+  dependency-transparency:
+    status: done
+    comment: >-
+      Einzige Abhängigkeit ist `aiosqlite==0.20.0` aus PyPI, im Manifest
+      festgenagelt.
+  docs-actions:
+    status: done
+    comment: >-
+      README, Abschnitt „Verlauf aus dem Recorder nachholen" beschreibt
+      `localtrack.import_history` mit allen vier Feldern.
+  docs-high-level-description:
+    status: done
+    comment: README, Abschnitt „Wofür das gut ist".
+  docs-installation-instructions:
+    status: done
+    comment: README, Abschnitt „Installation über HACS" und „Einrichtung".
+  docs-removal-instructions:
+    status: done
+    comment: README, Abschnitt „Entfernen".
+  entity-event-setup:
+    status: exempt
+    comment: Die Integration legt keine Entitäten an.
+  entity-unique-id:
+    status: exempt
+    comment: Die Integration legt keine Entitäten an.
+  has-entity-name:
+    status: exempt
+    comment: Die Integration legt keine Entitäten an.
+  runtime-data:
+    status: done
+    comment: >-
+      `entry.runtime_data` hält die `LocalTrackRuntime`; `hass.data` wird nur
+      zusätzlich für die WebSocket-Kommandos gefüllt, die keinen Eintrag
+      kennen.
+  test-before-configure:
+    status: exempt
+    comment: >-
+      Es gibt kein Gerät und keinen Dienst, gegen den geprüft werden könnte —
+      eingerichtet werden ausschließlich Entitäten der eigenen Installation.
+      Der Flow prüft stattdessen, dass mindestens eine Entität gewählt wurde.
+  test-before-setup:
+    status: done
+    comment: >-
+      `async_setup_entry` öffnet die SQLite-Datei und wandelt jeden Fehler in
+      `ConfigEntryNotReady` (__init__.py).
+  unique-config-entry:
+    status: done
+    comment: >-
+      `async_set_unique_id(DOMAIN)` plus `_abort_if_unique_id_configured()`;
+      zusätzlich fängt `_async_current_entries()` Alt-Einträge ohne
+      `unique_id` ab.

@@ -43,6 +43,15 @@ Manuell geht auch: den Ordner `custom_components/localtrack` nach
 Voraussetzungen: Home Assistant **2024.11.0** oder neuer. Die Abhängigkeit
 `aiosqlite` installiert Home Assistant beim ersten Start selbst.
 
+Jedes Feld des Dialogs trägt seinen eigenen Hilfetext (deutsch und englisch,
+je nach Spracheinstellung von Home Assistant); die Tabellen unten wiederholen
+ihn in Kurzform.
+
+*English:* add this repository to HACS as a **custom repository** of category
+**Integration**, download *Local Track*, restart Home Assistant, then go to
+Settings → Devices & Services → **Add integration** → *Local Track*. Every
+field in the dialog carries its own helper text, so nothing has to be guessed.
+
 ## Einrichtung
 
 Beim Hinzufügen fragt die Integration zwei Dinge:
@@ -58,9 +67,9 @@ lassen sich dort auch wieder ändern:
 | Option | Standard | Grenzen | Wirkung |
 | --- | --- | --- | --- |
 | Mindestabstand | 20 m | 0–5000 | wie weit ein Punkt vom letzten entfernt sein muss … |
-| Mindestabstand in der Zeit | 30 s | 1–86400 | … **oder** wie viel Zeit seither vergangen sein muss |
+| Mindestzeitabstand | 30 s | 1–86400 | … **oder** wie viel Zeit seither vergangen sein muss |
 | Ausdünnen ab Alter | 30 d | 1–3650 | ab welchem Alter alte Punkte ausgedünnt werden |
-| Intervall nach dem Ausdünnen | 300 s | 10–86400 | wie dicht sie danach höchstens noch liegen |
+| Ausdünn-Intervall | 300 s | 10–86400 | wie dicht sie danach höchstens noch liegen |
 
 Die beiden Dedupe-Werte sind mit **oder** verknüpft: gespeichert wird, sobald
 *eine* der beiden Bedingungen erfüllt ist. Der Abstand filtert GPS-Zittern im
@@ -358,6 +367,28 @@ passiert.
 - **Ein Eintrag**, nicht mehr.
 - Die Ausdünnung behält den **ersten** Punkt jedes Zeitfensters, nicht den
   aussagekräftigsten.
+
+## Entfernen
+
+1. Einstellungen → Geräte & Dienste → **Local Track** → ⋮ → **Löschen**.
+   Damit endet der Mitschnitt sofort; der Zustands-Listener, der Timer für die
+   Pflege und die WebSocket-Kommandos verschwinden mit dem Eintrag.
+2. In HACS **Local Track** → ⋮ → **Entfernen**, danach Home Assistant neu
+   starten. Das löscht `custom_components/localtrack`.
+
+**Was zurückbleibt:** die Datenbank `localtrack.db` im Konfigurationsordner.
+Sie wird bewusst **nicht** gelöscht — dort liegen Jahre an Standorten, und ein
+versehentliches Entfernen der Integration darf sie nicht mitnehmen. Wer sie
+wirklich loswerden will, löscht die Datei von Hand (bei gestopptem Home
+Assistant; je nach SQLite-Zustand liegen daneben `localtrack.db-wal` und
+`localtrack.db-shm`). Entitäten oder Geräte bleiben keine zurück — die
+Integration legt keine an.
+
+*English:* delete the entry under Settings → Devices & Services, then remove
+*Local Track* in HACS and restart. The database `localtrack.db` in the
+configuration folder is deliberately kept; delete it by hand (with Home
+Assistant stopped) if you really want the history gone. No entities or devices
+are left behind, because none are ever created.
 
 ## Lizenz
 

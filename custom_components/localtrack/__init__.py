@@ -27,7 +27,7 @@ from homeassistant.core import (
     SupportsResponse,
     callback,
 )
-from homeassistant.exceptions import HomeAssistantError
+from homeassistant.exceptions import ConfigEntryNotReady, HomeAssistantError
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.helpers.start import async_at_started
@@ -236,7 +236,14 @@ class LocalTrackRuntime:
 async def async_setup_entry(hass: HomeAssistant, entry: LocalTrackConfigEntry) -> bool:
     """Open the store, start the listener, publish the websocket command."""
     store = LocationStore(hass.config.path(DB_FILENAME))
-    await store.async_open()
+    try:
+        await store.async_open()
+    except Exception as err:  # noqa: BLE001 - sqlite raises a wide family here
+        # Quality scale `test-before-setup`: a locked or unreadable database
+        # file has to become a retry, not a stack trace during startup.
+        raise ConfigEntryNotReady(
+            f"Local Track database could not be opened: {err}"
+        ) from err
 
     runtime = LocalTrackRuntime(hass, entry, store)
     await runtime.async_start()

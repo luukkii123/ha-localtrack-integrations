@@ -81,6 +81,11 @@ class LocalTrackConfigFlow(ConfigFlow, domain=DOMAIN):
         if self._async_current_entries():
             return self.async_abort(reason="single_instance_allowed")
 
+        # One entry, one database file: the domain itself is the stable id.
+        # It survives a rename or an IP change, unlike anything host-derived.
+        await self.async_set_unique_id(DOMAIN)
+        self._abort_if_unique_id_configured()
+
         errors: dict[str, str] = {}
         if user_input is not None:
             if not user_input.get(CONF_ENTITIES):

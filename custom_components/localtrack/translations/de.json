@@ -6,7 +6,11 @@
         "description": "Wähle die Personen oder Tracker, deren Standorte über Jahre erhalten bleiben sollen. Die Punkte landen in einer eigenen Datenbank, die der Recorder nie aufräumt.",
         "data": {
           "entities": "Aufzuzeichnende Entitäten",
-          "retention_days": "Verlauf aufbewahren (Tage)"
+          "retention_days": "Verlauf aufbewahren"
+        },
+        "data_description": {
+          "entities": "Von diesen Personen und Device-Trackern werden die Standorte gespeichert; mindestens eine Auswahl ist nötig.",
+          "retention_days": "Tage, die ein Standort gespeichert bleibt, bevor er gelöscht wird; Vorgabe 400 Tage, erlaubt 1 bis 3650."
         }
       }
     },
@@ -14,7 +18,8 @@
       "no_entities": "Mindestens eine Person oder einen Device-Tracker auswählen."
     },
     "abort": {
-      "single_instance_allowed": "Local Track ist bereits eingerichtet. Änderungen über „Konfigurieren“."
+      "single_instance_allowed": "Local Track ist bereits eingerichtet. Änderungen über „Konfigurieren“.",
+      "already_configured": "Local Track ist bereits eingerichtet. Änderungen über „Konfigurieren“."
     }
   },
   "options": {
@@ -24,11 +29,19 @@
         "description": "Ein Standort wird gespeichert, wenn er mindestens den angegebenen Abstand zum letzten hat oder die angegebene Zeit vergangen ist. Punkte, die älter sind als die Ausdünn-Grenze, bleiben nur noch einer je Intervall.",
         "data": {
           "entities": "Aufzuzeichnende Entitäten",
-          "retention_days": "Verlauf aufbewahren (Tage)",
-          "min_distance_m": "Mindestabstand (Meter)",
-          "min_interval_s": "Mindestabstand in der Zeit (Sekunden)",
-          "downsample_after_days": "Ausdünnen ab Alter (Tage)",
-          "downsample_interval_s": "Intervall nach dem Ausdünnen (Sekunden)"
+          "retention_days": "Verlauf aufbewahren",
+          "min_distance_m": "Mindestabstand",
+          "min_interval_s": "Mindestzeitabstand",
+          "downsample_after_days": "Ausdünnen ab Alter",
+          "downsample_interval_s": "Ausdünn-Intervall"
+        },
+        "data_description": {
+          "entities": "Von diesen Personen und Device-Trackern werden die Standorte gespeichert; mindestens eine Auswahl ist nötig.",
+          "retention_days": "Tage, die ein Standort gespeichert bleibt, bevor er gelöscht wird; Vorgabe 400 Tage, erlaubt 1 bis 3650.",
+          "min_distance_m": "Ein neuer Standort wird erst gespeichert, wenn er so viele Meter vom letzten entfernt liegt; Vorgabe 20 Meter, 0 schaltet die Abstandsprüfung ab.",
+          "min_interval_s": "Ein Standort wird auch ohne Bewegung gespeichert, sobald seit dem letzten so viele Sekunden vergangen sind; Vorgabe 30 Sekunden, erlaubt 1 bis 86400.",
+          "downsample_after_days": "Standorte, die älter als so viele Tage sind, werden auf einen je Ausdünn-Intervall zusammengestrichen; Vorgabe 30 Tage, erlaubt 1 bis 3650.",
+          "downsample_interval_s": "Von den ausgedünnten Punkten bleibt je so viele Sekunden einer erhalten; Vorgabe 300 Sekunden, erlaubt 10 bis 86400."
         }
       }
     },

@@ -6,7 +6,11 @@
         "description": "Pick the people or trackers whose positions should be kept for years. Every position is stored in a separate database that the recorder never purges.",
         "data": {
           "entities": "Entities to record",
-          "retention_days": "Keep history for (days)"
+          "retention_days": "Keep history"
+        },
+        "data_description": {
+          "entities": "Positions of these people and device trackers are written to the store; at least one has to be picked.",
+          "retention_days": "Days a position stays in the store before it is deleted; default 400 days, allowed 1 to 3650."
         }
       }
     },
@@ -14,7 +18,8 @@
       "no_entities": "Pick at least one person or device tracker."
     },
     "abort": {
-      "single_instance_allowed": "Local Track is already set up. Use Configure to change it."
+      "single_instance_allowed": "Local Track is already set up. Use Configure to change it.",
+      "already_configured": "Local Track is already set up. Use Configure to change it."
     }
   },
   "options": {
@@ -24,11 +29,19 @@
         "description": "A position is stored when it is at least the given distance away from the last one, or when the given time has passed. Points older than the downsampling age are thinned out to one per interval.",
         "data": {
           "entities": "Entities to record",
-          "retention_days": "Keep history for (days)",
-          "min_distance_m": "Minimum distance (metres)",
-          "min_interval_s": "Minimum interval (seconds)",
-          "downsample_after_days": "Thin out points older than (days)",
-          "downsample_interval_s": "Thinned-out interval (seconds)"
+          "retention_days": "Keep history",
+          "min_distance_m": "Minimum distance",
+          "min_interval_s": "Minimum interval",
+          "downsample_after_days": "Thin out after",
+          "downsample_interval_s": "Thinning interval"
+        },
+        "data_description": {
+          "entities": "Positions of these people and device trackers are written to the store; at least one has to be picked.",
+          "retention_days": "Days a position stays in the store before it is deleted; default 400 days, allowed 1 to 3650.",
+          "min_distance_m": "A new position is only stored once it is this many metres away from the last one; default 20 metres, 0 switches the distance check off.",
+          "min_interval_s": "A position is stored anyway once this many seconds have passed since the last one; default 30 seconds, allowed 1 to 86400.",
+          "downsample_after_days": "Positions older than this many days are thinned out to one per thinning interval; default 30 days, allowed 1 to 3650.",
+          "downsample_interval_s": "Among the thinned-out points one position per this many seconds is kept; default 300 seconds, allowed 10 to 86400."
         }
       }
     },
