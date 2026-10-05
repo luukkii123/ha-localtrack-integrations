@@ -437,6 +437,11 @@ Frontendprobe betrifft den bestehenden Kartenvertrag; Release 0.4.1 verändert
 keine Formularfelder, Übersetzungen oder Kartenoberfläche. Die Runtimekorrektur
 ist zusätzlich mit echten HA-ServiceRegistry-Tests belegt.
 
+Auch der bestehende native Localtrack-Optionsdialog (`dialog-data-entry-flow`)
+wurde bei 320/480/960 px in Hell/Dunkel geprüft: sechs native Felder,
+6/6 Fälle ohne horizontalen Formular-/Dokumentüberlauf oder Frontendexception.
+Der temporäre Optionsflow wurde abgebrochen; keine Optionen gespeichert.
+
 Vollständige Bronze wird wegen des ungeklärten Dependency-Herkunftsnachweises
 weiterhin nicht im Manifest beansprucht. Produktive Importaktionen mit
 Recorderdaten sind kein Teil dieser Abnahme.
