@@ -419,3 +419,24 @@ Bronze-Stufe im Manifest beansprucht.
 Dies sind lokale Quellcode- und Bibliotheksnachweise; sie ersetzen keine
 Live-Abnahme und behaupten weder Veröffentlichung noch HACS-Installation.
 Aufruf und Testumgebung: [`tests_ha`](tests_ha/).
+
+## Geprüft: Release 0.4.1 (05.10.2026)
+
+Die Importaktion ist bereits nach Domainsetup verfügbar und bleibt nach Unload
+registriert. Die HA-Bibliotheksmatrix 2026.7.0/2026.9.2 besteht mit jeweils sechs
+Tests; Config-/Optionsflow erreichen 100 % Zeilen- und Zweigabdeckung. Ein
+unabhängiger Test prüft normales Domainsetup, erfolgreiche Serviceantwort,
+Unload und erneutes Setup. Die bestehenden 62 Logikprüfungen und statischen
+UI-Regeln sind erfolgreich.
+
+Die tatsächlich installierten nativen Localtrack-Karteneditoren wurden auf
+HA 2026.9.4 mit Speichern, Visual/YAML, Wiederöffnen und echter Browser-IME-
+Komposition geprüft; alle 17 Editoren der gemeinsamen Kartenfamilien bestanden.
+Das eigene Testdashboard wurde nach jedem Lauf wiederhergestellt. Diese
+Frontendprobe betrifft den bestehenden Kartenvertrag; Release 0.4.1 verändert
+keine Formularfelder, Übersetzungen oder Kartenoberfläche. Die Runtimekorrektur
+ist zusätzlich mit echten HA-ServiceRegistry-Tests belegt.
+
+Vollständige Bronze wird wegen des ungeklärten Dependency-Herkunftsnachweises
+weiterhin nicht im Manifest beansprucht. Produktive Importaktionen mit
+Recorderdaten sind kein Teil dieser Abnahme.
