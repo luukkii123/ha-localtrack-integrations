@@ -27,7 +27,11 @@ from homeassistant.core import (
     SupportsResponse,
     callback,
 )
-from homeassistant.exceptions import ConfigEntryNotReady, HomeAssistantError
+from homeassistant.exceptions import (
+    ConfigEntryNotReady,
+    HomeAssistantError,
+    ServiceValidationError,
+)
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.helpers.start import async_at_started
@@ -233,6 +237,12 @@ class LocalTrackRuntime:
             _LOGGER.exception("Local Track maintenance failed")
 
 
+async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
+    """Expose actions even when no config entry can be loaded."""
+    _async_register_services(hass)
+    return True
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: LocalTrackConfigEntry) -> bool:
     """Open the store, start the listener, publish the websocket command."""
     store = LocationStore(hass.config.path(DB_FILENAME))
@@ -252,7 +262,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: LocalTrackConfigEntry) -
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = runtime
 
     _async_register_websocket_api(hass)
-    _async_register_services(hass)
     _async_schedule_initial_import(hass, entry, runtime)
     entry.async_on_unload(entry.add_update_listener(async_reload_entry))
     return True
@@ -316,14 +325,14 @@ def _async_register_services(hass: HomeAssistant) -> None:
     async def _handle_import(call: ServiceCall) -> ServiceResponse:
         runtime = _get_runtime(hass)
         if runtime is None:
-            raise HomeAssistantError("Local Track is not set up")
+            raise ServiceValidationError("Local Track is not set up")
 
         requested = call.data.get("entity_id") or sorted(runtime.entities)
         unknown = [item for item in requested if item not in runtime.entities]
         if unknown:
             # Importing an entity that nothing records afterwards would leave a
             # stub of history that never grows — almost certainly a typo.
-            raise HomeAssistantError(
+            raise ServiceValidationError(
                 "Local Track does not record " + ", ".join(unknown)
             )
 

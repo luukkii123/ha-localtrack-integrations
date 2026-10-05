@@ -1,16 +1,14 @@
-# Integration Quality Scale — Stand 09.09.2026.
-# Mindestmaß laut docs/ui-regeln.md, Regel 3, ist Bronze. Hier steht der
-# ehrliche Stand jeder Bronze-Regel, nicht der gewünschte. `manifest.json`
-# führt bewusst KEINEN `quality_scale`-Schlüssel: der wäre eine Behauptung,
-# solange `config-flow-test-coverage` und `action-setup` offen sind.
+# Integration Quality Scale — geprüft am 05.10.2026.
+# Alle aktuellen Bronze-Regeln; tests_ha dokumentiert reproduzierbare Nachweise.
+# Siehe Verwaltungsreview 2026-10-05-bronze-nachweise.md für die Grenzen.
 rules:
   action-setup:
-    status: todo
+    status: done
     comment: >-
-      `localtrack.import_history` wird in `async_setup_entry` registriert
-      (__init__.py, _async_register_services). Bronze verlangt die
-      Registrierung in `async_setup`, damit die Aktion auch ohne geladenen
-      Eintrag existiert und dann sauber scheitert.
+      async_setup registriert import_history unabhängig von geladenen
+      Einträgen. Fehlender Runtime und nicht erfasste Entitäten erzeugen
+      ServiceValidationError. tests_ha/test_actions.py prüft Registrierung,
+      beide Fehler und Fortbestand nach Unload.
   appropriate-polling:
     status: exempt
     comment: >-
@@ -23,23 +21,31 @@ rules:
       Die Integration hat weder Coordinator noch Entitäten; es gibt nichts,
       was in `coordinator.py` oder `entity.py` gehörte.
   config-flow-test-coverage:
-    status: todo
-    comment: >-
-      `tests/smoke_test.py` prüft Ausdünnung, Speicher und Recorder-Import
-      ohne Home Assistant. Für den Config-Flow gibt es keine
-      pytest-Abdeckung, weil auf dem Entwicklungsrechner kein Home Assistant
-      installiert ist.
-  config-flow: done
-  dependency-transparency:
     status: done
     comment: >-
-      Einzige Abhängigkeit ist `aiosqlite==0.20.0` aus PyPI, im Manifest
-      festgenagelt.
+      tests_ha/test_config_flow.py führt echte HA-Flowmanager aus. Config-,
+      Options- und vorhandene Reauth/Reconfigure-Flows einschließlich
+      Fehler-Recovery und Dubletten: 100 % Zeilen- und Zweigabdeckung,
+      --cov-branch --cov-fail-under=100, HA 2026.7.0 und 2026.9.2.
+  config-flow: done
+  dependency-transparency:
+    status: todo
+    comment: >-
+      PyPI, OSI-Lizenz und öffentlicher Release-Tag für aiosqlite 0.20.0 belegt.
+      Öffentliche Workflows am Tag enthalten Tests, aber keinen belegten
+      Build-/Publish-Schritt zu PyPI. Dieser seit 30.09.2026 ausdrücklich
+      geforderte Nachweis fehlt; deshalb kein quality_scale im Manifest.
   docs-actions:
     status: done
     comment: >-
       README, Abschnitt „Verlauf aus dem Recorder nachholen" beschreibt
       `localtrack.import_history` mit allen vier Feldern.
+  docs-triggers:
+    status: exempt
+    comment: Keine eigenen Automations-Trigger bereitgestellt.
+  docs-conditions:
+    status: exempt
+    comment: Keine eigenen Automations-Bedingungen bereitgestellt.
   docs-high-level-description:
     status: done
     comment: README, Abschnitt „Wofür das gut ist".
