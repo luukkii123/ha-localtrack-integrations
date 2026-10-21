@@ -1,0 +1,76 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Local Track",
+        "description": "Wähle die Personen oder Tracker, deren Standorte über Jahre erhalten bleiben sollen. Die Punkte landen in einer eigenen Datenbank, die der Recorder nie aufräumt.",
+        "data": {
+          "entities": "Aufzuzeichnende Entitäten",
+          "retention_days": "Verlauf aufbewahren"
+        },
+        "data_description": {
+          "entities": "Von diesen Personen und Device-Trackern werden die Standorte gespeichert; mindestens eine Auswahl ist nötig.",
+          "retention_days": "Tage, die ein Standort gespeichert bleibt, bevor er gelöscht wird; Vorgabe 400 Tage, erlaubt 1 bis 3650."
+        }
+      }
+    },
+    "error": {
+      "no_entities": "Mindestens eine Person oder einen Device-Tracker auswählen."
+    },
+    "abort": {
+      "single_instance_allowed": "Local Track ist bereits eingerichtet. Änderungen über „Konfigurieren“.",
+      "already_configured": "Local Track ist bereits eingerichtet. Änderungen über „Konfigurieren“."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Local Track",
+        "description": "Ein Standort wird gespeichert, wenn er mindestens den angegebenen Abstand zum letzten hat oder die angegebene Zeit vergangen ist. Punkte, die älter sind als die Ausdünn-Grenze, bleiben nur noch einer je Intervall.",
+        "data": {
+          "entities": "Aufzuzeichnende Entitäten",
+          "retention_days": "Verlauf aufbewahren",
+          "min_distance_m": "Mindestabstand",
+          "min_interval_s": "Mindestzeitabstand",
+          "downsample_after_days": "Ausdünnen ab Alter",
+          "downsample_interval_s": "Ausdünn-Intervall"
+        },
+        "data_description": {
+          "entities": "Von diesen Personen und Device-Trackern werden die Standorte gespeichert; mindestens eine Auswahl ist nötig.",
+          "retention_days": "Tage, die ein Standort gespeichert bleibt, bevor er gelöscht wird; Vorgabe 400 Tage, erlaubt 1 bis 3650.",
+          "min_distance_m": "Ein neuer Standort wird erst gespeichert, wenn er so viele Meter vom letzten entfernt liegt; Vorgabe 20 Meter, 0 schaltet die Abstandsprüfung ab.",
+          "min_interval_s": "Ein Standort wird auch ohne Bewegung gespeichert, sobald seit dem letzten so viele Sekunden vergangen sind; Vorgabe 30 Sekunden, erlaubt 1 bis 86400.",
+          "downsample_after_days": "Standorte, die älter als so viele Tage sind, werden auf einen je Ausdünn-Intervall zusammengestrichen; Vorgabe 30 Tage, erlaubt 1 bis 3650.",
+          "downsample_interval_s": "Von den ausgedünnten Punkten bleibt je so viele Sekunden einer erhalten; Vorgabe 300 Sekunden, erlaubt 10 bis 86400."
+        }
+      }
+    },
+    "error": {
+      "no_entities": "Mindestens eine Person oder einen Device-Tracker auswählen."
+    }
+  },
+  "services": {
+    "import_history": {
+      "name": "Verlauf importieren",
+      "description": "Holt vorhandene Standorte aus dem Recorder von Home Assistant nach. Weiter zurück als der Recorder selbst reicht das nicht — meist wenige Tage, bestimmt durch purge_keep_days. Ein Tag, für den schon Punkte vorliegen, wird übersprungen, sofern „Überschreiben“ aus ist.",
+      "fields": {
+        "entity_id": {
+          "name": "Entitäten",
+          "description": "Welche aufgezeichneten Entitäten importiert werden. Leer bedeutet alle, die dieser Eintrag aufzeichnet."
+        },
+        "days": {
+          "name": "Tage zurück",
+          "description": "Wie weit zurück der Recorder gefragt wird. Was er bereits aufgeräumt hat, ist nicht wiederherstellbar."
+        },
+        "overwrite": {
+          "name": "Überschreiben",
+          "description": "Löscht die gespeicherten Punkte eines Tages, bevor er erneut importiert wird. Aus bedeutet: solche Tage bleiben unangetastet."
+        },
+        "dry_run": {
+          "name": "Trockenlauf",
+          "description": "Nur zählen, nichts schreiben. Damit lässt sich vorher sehen, wie viel ankäme."
+        }
+      }
+    }
+  }
+}
